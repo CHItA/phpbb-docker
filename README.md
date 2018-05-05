@@ -18,7 +18,7 @@ Currently the script supports the following environment.
 
 ### Supported PHP versions
 
-- All of them by tweaking the script.
+- All of them which have a [Docker image](https://hub.docker.com/_/php/).
 
 ## Installation
 
@@ -75,6 +75,27 @@ The administrator username is `admin` and the password is `adminadmin`.
 
 Your server should be available at `http://phpbb.local`.
 
+There are command line arguments that can be set when running the script. The syntax is the
+following:
+```bash
+phpbb-docker.bash -arg-name argvalue
+```
+
+or 
+
+```bash
+phpbb-docker.bash --arg-name argvalue
+```
+
+The supported arguments are:
+
+```
+-p or --php-version     For setting the PHP version. The argument should be a version number, 
+                        which will be appended by '-fpm' for the PHP base image. E.g.: -p 7.2
+                        Defaults to 7.
+                        
+-e or --environment     The phpBB environment name. Defaults to development.
+```
 
 ## License
 
