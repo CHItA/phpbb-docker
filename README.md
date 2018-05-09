@@ -97,6 +97,11 @@ The supported arguments are:
 -e or --environment     The phpBB environment name. Defaults to development.
 ```
 
+## Debugging
+
+The PHP image contains XDebug which will try to connect to the host machine on port 9000. The source folder 
+`repo/path/phpBB` maps to `/var/www/phpBB` in the container.
+
 ## License
 
 This script and the documentation is public domain, you can read the full license [here](LICENSE).

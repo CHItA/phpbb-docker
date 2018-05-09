@@ -134,6 +134,7 @@ if [ ! "$(docker ps -a -q -f name=$STORAGE_CONTAINER_NAME)" ]; then
         -v /var/www/phpBB/images/avatars/upload \
         -v /var/www/phpBB/vendor \
         -v /var/www/phpBB/vendor-ext \
+        -v /var/www/html \
         -d -i -t ubuntu > /dev/null
 
     # Create an overlay file structure.
@@ -215,10 +216,23 @@ if [ ! "$(docker ps -a -q -f name=$PHP_CONTAINER_NAME)" ]; then
 
         echo "  && docker-php-ext-configure zip --with-libzip && docker-php-ext-install zip \\" >> Dockerfile
         echo "  && docker-php-ext-install mysqli pdo_mysql \\" >> Dockerfile
+        echo "  && pecl install xdebug && docker-php-ext-enable xdebug \\" >> Dockerfile
 
         echo "  && rm -rf /var/lib/apt/lists/*" >> Dockerfile
 
+        echo "  RUN echo '[xdebug]' > /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+        echo "  RUN echo 'xdebug.remote_host = \"host.docker.internal\"' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+        echo "  RUN echo 'xdebug.default_enable = 1' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+        echo "  RUN echo 'xdebug.remote_autostart = 1' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+        echo "  RUN echo 'xdebug.remote_connect_back = 0' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+        echo "  RUN echo 'xdebug.remote_enable = 1' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+        echo "  RUN echo 'xdebug.remote_handler = \"dbgp\"' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+        echo "  RUN echo 'xdebug.remote_port = 9000' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+
+        exec 3>&2
+        exec 2> /dev/null
         docker build -t $PHP_IMAGE_NAME .
+        exec 2>&3
         rm -rf $SCRIPT_PATH/tmp
 
         echo -e "\033[0;32mdone\033[0m"
@@ -354,6 +368,20 @@ else
 fi
 
 echo -e "\033[0;32mdone\033[0m"
+
+########################################################################
+#
+# Final touches...
+#
+########################################################################
+#
+# Work around the host.docker.internal issue on linux...
+#
+if [[ $(uname -s) == Linux* ]]; then
+    docker exec \
+        -e HOST_IP=$(ifconfig docker0 | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') \
+        $PHP_CONTAINER_NAME /bin/bash -c 'echo "$HOST_IP host.docker.internal" >> /etc/hosts' > /dev/null
+fi
 
 ########################################################################
 #
