@@ -24,8 +24,8 @@ echo ""
 #
 ########################################################################
 if [ -z ${PHPBB_ROOT_PATH+x} ]; then
-	echo "PHPBB_ROOT_PATH is not set. Please set it by 'export PHPBB_ROOT_PATH=/path/to/phpbb' or add this string to your .bashrc"
-	exit
+    echo "PHPBB_ROOT_PATH is not set. Please set it by 'export PHPBB_ROOT_PATH=/path/to/phpbb' or add this string to your .bashrc"
+    exit
 fi
 
 ########################################################################
@@ -35,7 +35,7 @@ fi
 ########################################################################
 DATABASE_TYPE="mysql"
 DATABASE_VERSION="5.6"
-PHP_VERSION="7"
+PHP_VERSION="7.2"
 SERVER_TYPE="nginx"
 PHPBB_ENVIRONMENT="development"
 
@@ -76,7 +76,7 @@ INSTALL_PHPBB=0
 #
 ########################################################################
 function cleanup {
-    echo -n "Stopping containers... "
+    echo -n "Shuting down... "
 
     docker stop $SERVER_CONTAINER_NAME > /dev/null
 
@@ -91,6 +91,10 @@ function cleanup {
 
     docker network rm $NETWORK_NAME > /dev/null
 
+    if [ -d $SCRIPT_PATH/tmp ]; then
+        rm -rf $SCRIPT_PATH/tmp > /dev/null
+    fi
+
     echo -e "\033[0;32mdone\033[0m"
 }
 
@@ -103,6 +107,41 @@ trap cleanup EXIT
 ########################################################################
 cd ${PHPBB_ROOT_PATH}
 BRANCHNAME=$(git rev-parse --abbrev-ref HEAD | sed "s/[^0-9a-zA-Z\-]/-/g")
+
+########################################################################
+#
+# Check provided information.
+#
+########################################################################
+#
+# Figure out the XDebug version...
+#
+# Figure out the exact PHP version...
+docker run -d --name phpbb-php-version-test-container php:$PHP_VERSION-fpm > /dev/null
+PHP_VERSION_STRING=$(docker exec phpbb-php-version-test-container php --version)
+docker stop phpbb-php-version-test-container > /dev/null
+docker rm phpbb-php-version-test-container > /dev/null
+
+PHP_VERSION_STRING=$(echo $PHP_VERSION_STRING | sed -e 's/^PHP \([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/')
+PHP_MAJOR_VERSION=$(echo $PHP_VERSION_STRING | sed -e 's/\([0-9]\+\)\.[0-9]\+\.[0-9]\+.*/\1/')
+PHP_MINOR_VERSION=$(echo $PHP_VERSION_STRING | sed -e 's/[0-9]\+\.\([0-9]\+\)\.[0-9]\+.*/\1/')
+
+if [ $PHP_MAJOR_VERSION -eq 5 ]; then
+    if [ $PHP_MINOR_VERSION -gt 4 ]; then
+        XDEBUG_VERSION="2.5.5"
+    else
+        XDEBUG_VERSION="2.4.1"
+    fi
+elif [ $PHP_MAJOR_VERSION -eq 7 ]; then
+    if [ $PHP_MINOR_VERSION -ge 3 ]; then
+        XDEBUG_VERSION="2.7.0beta1"
+    else
+        XDEBUG_VERSION="2.6.1"
+    fi
+else
+    echo "PHP version is unsupported..."
+    exit;
+fi
 
 ########################################################################
 #
@@ -137,7 +176,6 @@ if [ ! "$(docker ps -a -q -f name=$STORAGE_CONTAINER_NAME)" ]; then
         -v /var/www/html \
         -d -i -t ubuntu > /dev/null
 
-    # Create an overlay file structure.
     docker exec -d $STORAGE_CONTAINER_NAME rm /var/www/phpBB/config.php
 
     INSTALL_DEPENDENCIES=1
@@ -157,8 +195,8 @@ DATABASE_CONTAINER_NAME="phpbb-$DATABASE_TYPE-$DATABASE_VERSION-$BRANCHNAME"
 
 echo -n "Starting database container ($DATABASE_TYPE:$DATABASE_VERSION)... "
 if [ ! "$(docker ps -a -q -f name=$DATABASE_CONTAINER_NAME)" ]; then
-	# Set the database config.
-	cat <<EOL > /tmp/mysql.cnf
+    # Set the database config.
+    cat <<EOL > /tmp/mysql.cnf
 [mysqld]
 default-storage-engine=MyISAM
 default-tmp-storage-engine=MyISAM
@@ -166,26 +204,26 @@ tmpdir=/dev/shm/
 datadir=/dev/shm/
 EOL
 
-	# Create a new conteiner.
-	docker run \
-		--name $DATABASE_CONTAINER_NAME \
-		-p 3306:3306 \
-		-e MYSQL_ROOT_PASSWORD=supersecret \
-		-e MYSQL_DATABASE=phpbb \
-		-e MYSQL_USER=phpbb \
-		-e MYSQL_PASSWORD=phpbb \
-		-d $DATABASE_TYPE:$DATABASE_VERSION \
-		--character-set-server=utf8mb4 \
-		--collation-server=utf8mb4_unicode_ci > /dev/null
+    # Create a new conteiner.
+    docker run \
+        --name $DATABASE_CONTAINER_NAME \
+        -p 3306:3306 \
+        -e MYSQL_ROOT_PASSWORD=supersecret \
+        -e MYSQL_DATABASE=phpbb \
+        -e MYSQL_USER=phpbb \
+        -e MYSQL_PASSWORD=phpbb \
+        -d $DATABASE_TYPE:$DATABASE_VERSION \
+        --character-set-server=utf8mb4 \
+        --collation-server=utf8mb4_unicode_ci > /dev/null
 else
-	# Spin up the container.
-	docker start $DATABASE_CONTAINER_NAME > /dev/null
+    # Spin up the container.
+    docker start $DATABASE_CONTAINER_NAME > /dev/null
 fi
 
 # Connect the container to the network
 docker network connect \
-	--alias db \
-	$NETWORK_NAME $DATABASE_CONTAINER_NAME > /dev/null
+    --alias db \
+    $NETWORK_NAME $DATABASE_CONTAINER_NAME > /dev/null
 
 echo -e "\033[0;32mdone\033[0m"
 
@@ -204,10 +242,11 @@ if [ ! "$(docker ps -a -q -f name=$PHP_CONTAINER_NAME)" ]; then
     if [ ! "$(docker images -q $PHP_IMAGE_NAME)" ]; then
         echo ""
         echo -n "    Create new PHP image... "
+        echo -n -e "\033[1;33mbuilding... \033[0m"
 
-        mkdir $SCRIPT_PATH/tmp
-        cd $SCRIPT_PATH/tmp
-        touch Dockerfile
+        mkdir $SCRIPT_PATH/tmp > /dev/null
+        cd $SCRIPT_PATH/tmp > /dev/null
+        touch Dockerfile > /dev/null
 
         echo "FROM php:$PHP_VERSION-fpm" >> Dockerfile
         echo "" >> Dockerfile
@@ -216,7 +255,7 @@ if [ ! "$(docker ps -a -q -f name=$PHP_CONTAINER_NAME)" ]; then
 
         echo "  && docker-php-ext-configure zip --with-libzip && docker-php-ext-install zip \\" >> Dockerfile
         echo "  && docker-php-ext-install mysqli pdo_mysql \\" >> Dockerfile
-        echo "  && pecl install xdebug && docker-php-ext-enable xdebug \\" >> Dockerfile
+        echo "  && pecl install xdebug-$XDEBUG_VERSION && docker-php-ext-enable xdebug \\" >> Dockerfile
 
         echo "  && rm -rf /var/lib/apt/lists/*" >> Dockerfile
 
@@ -231,27 +270,27 @@ if [ ! "$(docker ps -a -q -f name=$PHP_CONTAINER_NAME)" ]; then
 
         exec 3>&2
         exec 2> /dev/null
-        docker build -t $PHP_IMAGE_NAME .
+        docker build -t $PHP_IMAGE_NAME . > /dev/null
         exec 2>&3
-        rm -rf $SCRIPT_PATH/tmp
+        rm -rf $SCRIPT_PATH/tmp > /dev/null
 
         echo -e "\033[0;32mdone\033[0m"
     fi
 
-	# Create container.
-	docker run -d \
-		--name $PHP_CONTAINER_NAME \
-		--volumes-from $STORAGE_CONTAINER_NAME \
-		$PHP_IMAGE_NAME > /dev/null
+    # Create container.
+    docker run -d \
+        --name $PHP_CONTAINER_NAME \
+        --volumes-from $STORAGE_CONTAINER_NAME \
+        $PHP_IMAGE_NAME > /dev/null
 else
-	# Restart the docker container
-	docker start $PHP_CONTAINER_NAME > /dev/null
+    # Restart the docker container
+    docker start $PHP_CONTAINER_NAME > /dev/null
 fi
 
 # Attach it to the network.
 docker network connect \
-	--alias php \
-	$NETWORK_NAME $PHP_CONTAINER_NAME > /dev/null
+    --alias php \
+    $NETWORK_NAME $PHP_CONTAINER_NAME > /dev/null
 
 echo -e "\033[0;32mdone\033[0m"
 
@@ -262,10 +301,11 @@ echo -e "\033[0;32mdone\033[0m"
 ########################################################################
 if [ $INSTALL_DEPENDENCIES -eq 1 ]; then
     echo -n "Installing composer dependencies... "
+    echo -n -e "\033[1;33minstalling... \033[0m"
 
     exec 3>&2
     exec 2> /dev/null
-    docker exec $PHP_CONTAINER_NAME /bin/bash -c 'cd /var/www/phpBB && php ../composer.phar install'
+    docker exec $PHP_CONTAINER_NAME /bin/bash -c 'cd /var/www/phpBB && php ../composer.phar install' > /dev/null
     exec 2>&3
 
     echo -e "\033[0;32mdone\033[0m"
@@ -278,6 +318,7 @@ fi
 ########################################################################
 if [ $INSTALL_PHPBB -eq 1 ]; then
     echo -n "Installing phpBB... "
+    echo -n -e "\033[1;33minstalling... \033[0m"
 
     docker exec $PHP_CONTAINER_NAME /bin/bash -c 'cd /var/www/phpBB && chown www-data:www-data cache' > /dev/null
     docker exec $PHP_CONTAINER_NAME /bin/bash -c 'cd /var/www/phpBB && chown www-data:www-data files' > /dev/null
@@ -355,16 +396,16 @@ echo -n "Starting the server ($SERVER_TYPE)... "
 SERVER_CONTAINER_NAME="phpbb-$SERVER_TYPE-$BRANCHNAME"
 
 if [ ! "$(docker ps -a -q -f name=$SERVER_CONTAINER_NAME)" ]; then
-	docker run -d \
-		--name $SERVER_CONTAINER_NAME \
-		-p 80:80 \
-		-p 443:443 \
-		--volumes-from $STORAGE_CONTAINER_NAME \
-		-v $SCRIPT_PATH/data/nginx.conf:/etc/nginx/conf.d/site.conf:ro \
-		--network $NETWORK_NAME \
-		nginx:latest > /dev/null
+    docker run -d \
+        --name $SERVER_CONTAINER_NAME \
+        -p 80:80 \
+        -p 443:443 \
+        --volumes-from $STORAGE_CONTAINER_NAME \
+        -v $SCRIPT_PATH/data/nginx.conf:/etc/nginx/conf.d/site.conf:ro \
+        --network $NETWORK_NAME \
+        nginx:latest > /dev/null
 else
-	docker start $SERVER_CONTAINER_NAME
+    docker start $SERVER_CONTAINER_NAME
 fi
 
 echo -e "\033[0;32mdone\033[0m"
@@ -379,7 +420,7 @@ echo -e "\033[0;32mdone\033[0m"
 #
 if [[ $(uname -s) == Linux* ]]; then
     docker exec \
-        -e HOST_IP=$(ifconfig docker0 | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') \
+        -e HOST_IP=$(ip addr show docker0 | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') \
         $PHP_CONTAINER_NAME /bin/bash -c 'echo "$HOST_IP host.docker.internal" >> /etc/hosts' > /dev/null
 fi
 
