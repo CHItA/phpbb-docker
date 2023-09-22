@@ -35,7 +35,7 @@ fi
 ########################################################################
 DATABASE_TYPE="mysql"
 DATABASE_VERSION="5.6"
-PHP_VERSION="7.2"
+PHP_VERSION="8.2"
 SERVER_TYPE="nginx"
 PHPBB_ENVIRONMENT="development"
 
@@ -138,6 +138,8 @@ elif [ $PHP_MAJOR_VERSION -eq 7 ]; then
     else
         XDEBUG_VERSION="2.6.1"
     fi
+elif [ $PHP_MAJOR_VERSION -eq 8 ]; then
+	XDEBUG_VERSION="3.2.2"
 else
     echo "PHP version is unsupported..."
     exit;
@@ -251,9 +253,9 @@ if [ ! "$(docker ps -a -q -f name=$PHP_CONTAINER_NAME)" ]; then
         echo "FROM php:$PHP_VERSION-fpm" >> Dockerfile
         echo "" >> Dockerfile
         echo "RUN apt-get update && apt-get install -y \\" >> Dockerfile
-        echo "  libzip-dev \\" >> Dockerfile
+        echo "  libzip-dev zip \\" >> Dockerfile
 
-        echo "  && docker-php-ext-configure zip --with-libzip && docker-php-ext-install zip \\" >> Dockerfile
+        echo "  && docker-php-ext-install zip \\" >> Dockerfile
         echo "  && docker-php-ext-install mysqli pdo_mysql \\" >> Dockerfile
         echo "  && pecl install xdebug-$XDEBUG_VERSION && docker-php-ext-enable xdebug \\" >> Dockerfile
 
@@ -305,7 +307,7 @@ if [ $INSTALL_DEPENDENCIES -eq 1 ]; then
 
     exec 3>&2
     exec 2> /dev/null
-    docker exec $PHP_CONTAINER_NAME /bin/bash -c 'cd /var/www/phpBB && php ../composer.phar install' > /dev/null
+    docker exec $PHP_CONTAINER_NAME /bin/bash -c 'cd /var/www/phpBB && php ../composer.phar install' # > /dev/null
     exec 2>&3
 
     echo -e "\033[0;32mdone\033[0m"
