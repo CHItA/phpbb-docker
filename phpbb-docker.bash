@@ -257,18 +257,16 @@ if [ ! "$(docker ps -a -q -f name=$PHP_CONTAINER_NAME)" ]; then
 
         echo "  && docker-php-ext-install zip \\" >> Dockerfile
         echo "  && docker-php-ext-install mysqli pdo_mysql \\" >> Dockerfile
-        echo "  && pecl install xdebug-$XDEBUG_VERSION && docker-php-ext-enable xdebug \\" >> Dockerfile
+        # echo "  && pecl install xdebug-$XDEBUG_VERSION && docker-php-ext-enable xdebug \\" >> Dockerfile
 
         echo "  && rm -rf /var/lib/apt/lists/*" >> Dockerfile
 
         echo "  RUN echo '[xdebug]' > /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
-        echo "  RUN echo 'xdebug.remote_host = \"host.docker.internal\"' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
-        echo "  RUN echo 'xdebug.default_enable = 1' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
-        echo "  RUN echo 'xdebug.remote_autostart = 1' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
-        echo "  RUN echo 'xdebug.remote_connect_back = 0' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
-        echo "  RUN echo 'xdebug.remote_enable = 1' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
-        echo "  RUN echo 'xdebug.remote_handler = \"dbgp\"' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
-        echo "  RUN echo 'xdebug.remote_port = 9000' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+        echo "  RUN echo 'xdebug.mode = debug,develop' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+        echo "  RUN echo 'xdebug.start_with_request = yes' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+        echo "  RUN echo 'xdebug.discover_client_host = 0' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+        echo "  RUN echo 'xdebug.client_host = host.docker.internal' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
+        echo "  RUN echo 'xdebug.client_port = 9003' >> /usr/local/etc/php/conf.d/xdebug.ini" >> Dockerfile
 
         exec 3>&2
         exec 2> /dev/null
@@ -354,7 +352,6 @@ installer:
         smtp_delivery : ~
         smtp_host: ~
         smtp_port: ~
-        smtp_auth: ~
         smtp_user: ~
         smtp_pass: ~
 
@@ -366,7 +363,7 @@ installer:
         server_port: 80
         script_path: /
 
-    extensions: ['phpbb/viglink']
+    extensions: []
 EOL" > /dev/null
 
     # Install phpBB
